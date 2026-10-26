@@ -1,0 +1,38 @@
+.dummy-remove-me-settings-dspbridge-tr-headline {
+	font-style: italic;
+}
+
+.settings-combo-small {
+	border: 1dp #aaa;
+	background-color: #0008;
+	border-radius: 0.4em;
+	line-height: 1.2em;
+	min-height: 1.2em;
+	padding-left: 0.3em;
+	width: 9em;
+}
+
+.settings-combo-channel {
+	width: 3em;
+	items-per-column: 17;
+}
+
+.settings-combo-small combotext {
+	line-height: 1.2em;
+	height: 100%;
+	text-align: left;
+}
+
+.ml-tr {
+	padding-top: 0.3em;
+	padding-bottom: 0.3em;
+}
+
+.ml-col-type { width: 7%; }
+.ml-col-channel { width: 8%; }
+.ml-col-part { width: 8%; }
+.ml-col-controller { width: 9%; }
+.ml-col-mode { width: 17%; }
+.ml-col-invert { width: 7%; }
+.ml-col-parameter { width: 19%; }
+.ml-col-remove { width: 15%; }

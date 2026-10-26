@@ -1,0 +1,224 @@
+#pragma once
+
+#include "parameterdescriptions.h"
+#include "parameter.h"
+#include "parameterlocking.h"
+#include "softknob.h"
+
+#include "synthLib/frontPanelSysex.h"
+#include "synthLib/midiTypes.h"
+
+#include <string>
+
+#include "parameterlinks.h"
+
+namespace juce
+{
+	class AudioProcessor;
+	class Value;
+}
+
+namespace pluginLib
+{
+	class Processor;
+	using SysEx = synthLib::SysexBuffer;
+
+	class Controller : juce::Timer
+	{
+	public:
+		static constexpr uint32_t InvalidParameterIndex = 0xffffffff;
+
+		baseLib::Event<uint8_t> onCurrentPartChanged;
+
+		// _formatterFactory makes the texts of the parameters whose description has "toText": {"formatter": ...},
+		// _parameterDescVariant picks one of the json's "variants", see ParameterDescriptions
+		explicit Controller(Processor& _processor, const std::string& _parameterDescJsonFilename,
+			const ParameterDescriptions::FormatterFactory& _formatterFactory = {}, const std::string& _parameterDescVariant = {});
+		~Controller() override;
+
+		virtual void sendParameterChange(const Parameter& _parameter, ParamValue _value, pluginLib::Parameter::Origin _origin) = 0;
+		void sendLockedParameters(uint8_t _part, Parameter::Origin _origin = Parameter::Origin::PresetChange);
+
+        juce::Value* getParamValueObject(uint32_t _index, uint8_t _part) const;
+        Parameter* getParameter(uint32_t _index) const;
+        Parameter* getParameter(uint32_t _index, uint8_t _part) const;
+        Parameter* getParameter(const std::string& _name, uint8_t _part) const;
+		
+        uint32_t getParameterIndexByName(const std::string& _name) const;
+
+		bool setParameters(const std::map<std::string, ParamValue>& _values, uint8_t _part, Parameter::Origin _changedBy) const;
+
+		// A text stored with one parameter per character, a patch name for example. _format names the parameter of each
+		// character ("Name%02u", "SingleName%u"). Reading stops at the first parameter that does not exist or has no value
+		std::string getParamString(const char* _format, uint32_t _length, const MidiPacket::ParamValues& _values) const;
+		std::string getParamString(const char* _format, uint32_t _length, const MidiPacket::AnyPartParamValues& _values) const;
+		std::string getParamString(const char* _format, uint32_t _length, uint8_t _part) const;
+		// writes _string to the parameters of _part, fills the rest of _length with _pad, without notifying the host
+		void setParamString(const char* _format, uint32_t _length, uint8_t _part, const std::string& _string, char _pad) const;
+
+		const MidiPacket* getMidiPacket(const std::string& _name) const;
+
+		bool createNamedParamValues(MidiPacket::NamedParamValues& _params, const std::string& _packetName, uint8_t _part) const;
+		bool createNamedParamValues(MidiPacket::NamedParamValues& _dest, const MidiPacket::AnyPartParamValues& _source) const;
+		bool createMidiDataFromPacket(SysEx& _sysex, const std::string& _packetName, const std::map<MidiDataType, uint8_t>& _data, uint8_t _part) const;
+		bool createMidiDataFromPacket(SysEx& _sysex, const std::string& _packetName, const std::map<MidiDataType, uint8_t>& _data, const MidiPacket::NamedParamValues& _values) const;
+		bool createMidiDataFromPacket(SysEx& _sysex, const std::string& _packetName, const std::map<MidiDataType, uint8_t>& _data, const MidiPacket::AnyPartParamValues& _values) const;
+
+		bool parseMidiPacket(const MidiPacket& _packet, MidiPacket::Data& _data, MidiPacket::ParamValues& _parameterValues, const SysEx& _src) const;
+		bool parseMidiPacket(const MidiPacket& _packet, MidiPacket::Data& _data, MidiPacket::AnyPartParamValues& _parameterValues, const SysEx& _src) const;
+		bool parseMidiPacket(const MidiPacket& _packet, MidiPacket::Data& _data, const std::function<void(MidiPacket::ParamIndex, ParamValue)>& _parameterValues, const SysEx& _src) const;
+		bool parseMidiPacket(const std::string& _name, MidiPacket::Data& _data, MidiPacket::ParamValues& _parameterValues, const SysEx& _src) const;
+		bool parseMidiPacket(std::string& _name, MidiPacket::Data& _data, MidiPacket::ParamValues& _parameterValues, const SysEx& _src) const;
+
+		const auto& getExposedParameters() const { return m_synthParams; }
+		const auto& getInternalParameters() const { return m_synthInternalParams; }
+
+		uint8_t getCurrentPart() const { return m_currentPart; }
+		virtual bool setCurrentPart(uint8_t _part);
+		virtual uint8_t getPartCount() const { return 16; }
+		// whether a part takes a patch right now, dropped on its part button for example
+		virtual bool isPartEnabled(const uint8_t _part) const { return _part < getPartCount(); }
+
+		virtual bool parseSysexMessage(const SysEx&, synthLib::MidiEventSource) = 0;
+		virtual bool parseControllerMessage(const synthLib::SMidiEvent&);
+
+		virtual bool parseMidiMessage(const synthLib::SMidiEvent& _e);
+
+		virtual void onStateLoaded() = 0;
+
+        // this is called by the plug-in on audio thread!
+        void enqueueMidiMessages(const std::vector<synthLib::SMidiEvent>&);
+
+		void loadChunkData(baseLib::ChunkReader& _cr);
+		void saveChunkData(baseLib::BinaryStream& _s) const;
+
+		static Parameter::Origin midiEventSourceToParameterOrigin(synthLib::MidiEventSource _source);
+		static synthLib::MidiEventSource parameterOriginToMidiEventSource(Parameter::Origin _origin);
+
+		std::vector<uint8_t> getPartsForMidiEvent(const synthLib::SMidiEvent& _e)
+		{
+			return getPartsForMidiChannel(_e.a & 0x0f);
+		}
+
+		virtual  std::vector<uint8_t> getPartsForMidiChannel(uint8_t _channel) { return {}; }
+
+		// Drops what the device sent that has not been parsed yet. After a state load, that describes the state
+		// before it and would overwrite the loaded one when it is parsed
+		void discardQueuedMidiMessages()
+		{
+			std::vector<synthLib::SMidiEvent> stale;
+			getMidiMessages(stale);
+		}
+
+	private:
+		void getMidiMessages(std::vector<synthLib::SMidiEvent>&);
+		void processMidiMessages();
+		std::string loadParameterDescriptions(const std::string& _filename) const;
+
+	public:
+		ParameterLocking& getParameterLocking() { return m_locking; }
+		ParameterLinks& getParameterLinks() { return m_parameterLinks; }
+
+		std::set<std::string> getRegionIdsForParameter(const Parameter* _param) const;
+		std::set<std::string> getRegionIdsForParameter(const std::string& _name) const;
+
+		const ParameterDescriptions& getParameterDescriptions() const { return m_descriptions; }
+
+		const SoftKnob* getSoftknob(const Parameter* _parameter) const
+		{
+			const auto it = m_softKnobs.find(_parameter);
+			return it->second.get();
+		}
+
+		SoftKnob* getSoftknob(const Parameter* _parameter)
+		{
+			const auto it = m_softKnobs.find(_parameter);
+			return it != m_softKnobs.end() ? it->second.get() : nullptr;
+		}
+
+		Processor& getProcessor() const { return m_processor; }
+
+		// The device's front panel frames (synthLib::fp), decoded on the message thread. Only those the device sent
+		// (source Internal) are decoded, every other one is dropped
+		synthLib::FrontPanelTransport& getFrontPanel() { return m_frontPanel; }
+		// sends frames made by the synthLib::fp encoders to the device
+		void sendFrontPanel(std::vector<synthLib::SMidiEvent>&& _events) const;
+
+	protected:
+		virtual Parameter* createParameter(Controller& _controller, const Description& _desc, uint8_t _part, int _uid, const Parameter::PartFormatter& _partFormatter);
+		void registerParams(juce::AudioProcessor& _processor, Parameter::PartFormatter _partFormatter = nullptr);
+
+		void sendSysEx(const pluginLib::SysEx &) const;
+		bool sendSysEx(const std::string& _packetName) const;
+		bool sendSysEx(const std::string& _packetName, const std::map<pluginLib::MidiDataType, uint8_t>& _params) const;
+		void sendMidiEvent(const synthLib::SMidiEvent& _ev) const;
+		void sendMidiEvent(uint8_t _a, uint8_t _b, uint8_t _c, uint32_t _offset = 0, synthLib::MidiEventSource _source = synthLib::MidiEventSource::Editor) const;
+
+		bool combineParameterChange(uint8_t& _result, const std::string& _midiPacket, const Parameter& _parameter, ParamValue _value) const;
+
+		void applyPatchParameters(const MidiPacket::ParamValues& _params, uint8_t _part) const;
+
+		// Call after a preset changed parameter values with Origin::PresetChange, tells the host to read all parameters again
+		void onPresetParametersChanged() const;
+
+		virtual bool isDerivedParameter(Parameter& _derived, Parameter& _base) const { return true; }
+		// for an isDerivedParameter() of parameters that share bytes of a dump: derived if their masks in _packetName
+		// overlap. True if the packet or one of the two definitions is missing
+		bool isDerivedParameterInPacket(const std::string& _packetName, const Parameter& _derived, const Parameter& _base) const;
+
+        struct ParamIndex
+        {
+            uint8_t page;
+            uint8_t partNum;
+            uint8_t paramNum;
+
+        	bool operator<(const ParamIndex& _p) const
+            {
+				if (page < _p.page)         return true;
+				if (page > _p.page)         return false;
+				if (partNum < _p.partNum)   return true;
+				if (partNum > _p.partNum)   return false;
+				if (paramNum < _p.paramNum) return true;
+				if (paramNum > _p.paramNum) return false;
+				return false;
+			}
+
+			bool operator==(const ParamIndex& _p) const
+            {
+	            return page == _p.page && partNum == _p.partNum && paramNum == _p.paramNum;
+            }
+        };
+
+		using ParameterList = std::vector<Parameter*>;
+
+		void timerCallback() override;
+
+	private:
+		Processor& m_processor;
+        const ParameterDescriptions m_descriptions;
+
+		uint8_t m_currentPart = 0;
+
+		std::mutex m_midiMessagesLock;
+        std::vector<synthLib::SMidiEvent> m_midiMessages;
+
+		NrpnDecoder m_nrpnDecoder;	// for the NRPN entries of the controller map, see parseControllerMessage
+
+		std::map<const Parameter*, std::unique_ptr<SoftKnob>> m_softKnobs;
+
+		synthLib::FrontPanelTransport m_frontPanel;
+
+	protected:
+		// tries to find synth param in both internal and host
+		const ParameterList& findSynthParam(uint8_t _part, uint8_t _page, uint8_t _paramIndex) const;
+		const ParameterList& findSynthParam(const ParamIndex& _paramIndex) const;
+
+    	std::map<ParamIndex, ParameterList> m_synthInternalParams;
+		std::map<ParamIndex, ParameterList> m_synthParams; // exposed and managed by audio processor
+		std::vector<ParameterList> m_paramsByParamType;	// one per part
+		std::vector<std::unique_ptr<Parameter>> m_synthInternalParamList;
+		ParameterLocking m_locking;
+		ParameterLinks m_parameterLinks;
+		mutable ParameterList m_tempReturnParameterList;
+	};
+}

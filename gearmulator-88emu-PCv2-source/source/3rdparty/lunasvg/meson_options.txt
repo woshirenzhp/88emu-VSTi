@@ -1,0 +1,14 @@
+option('examples', type : 'feature', value : 'auto')
+option('tests', type : 'feature', value : 'auto')
+
+option('load-system-fonts',
+    type : 'feature',
+    value : 'auto',
+    description : 'Enable automatic loading of fonts from system directories'
+)
+
+option('external-resources',
+    type : 'feature',
+    value : 'auto',
+    description : 'Enable loading of resources referenced by file path'
+)

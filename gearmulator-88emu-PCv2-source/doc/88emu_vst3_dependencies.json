@@ -1,0 +1,42 @@
+[
+  {
+    "path": "source/3rdparty/JUCE",
+    "url": "https://github.com/dsp56300/JUCE",
+    "commit": "107cf3b2491f75af12a2cc9df15d48eb459513e2"
+  },
+  {
+    "path": "source/3rdparty/RmlUi",
+    "url": "https://github.com/dsp56300/RmlUi",
+    "commit": "c048a916d4b40060fea866136241877fa94b9885"
+  },
+  {
+    "path": "source/3rdparty/freetype",
+    "url": "https://github.com/freetype/freetype",
+    "commit": "4ba7c3d82ab8b3cc80b869337d2c2b1913c5e415"
+  },
+  {
+    "path": "source/3rdparty/lunasvg",
+    "url": "https://github.com/sammycage/lunasvg",
+    "commit": "470e78e2953dcf0d4b46322d64eed6ca84156fec"
+  },
+  {
+    "path": "source/3rdparty/portmidi-latest",
+    "url": "https://github.com/PortMidi/portmidi",
+    "commit": "6b51c25659965ff763e266e4d90be099b5bcb344"
+  },
+  {
+    "path": "source/3rdparty/cpp-terminal",
+    "url": "https://github.com/dsp56300/cpp-terminal",
+    "commit": "0674a799ba7ab99fab0bae48e35415aa23d3f1fb"
+  },
+  {
+    "path": "source/cpu/dsp56300",
+    "url": "https://github.com/dsp56300/dsp56300",
+    "commit": "8b731966f9792789adc39fe180a8cf68508f816a"
+  },
+  {
+    "path": "source/cpu/mc68k",
+    "url": "https://github.com/dsp56300/mc68k",
+    "commit": "7f55d95a6b561fab780a43593ad34953bb4425b0"
+  }
+]

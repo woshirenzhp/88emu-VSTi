@@ -1,0 +1,286 @@
+#pragma once
+
+#include <atomic>
+#include <cfloat>
+
+#include "frameRateLimiter.h"
+#include "juceRmlComponentConfig.h"
+#include "juceRmlDrag.h"
+#include "rmlInterfaces.h"
+#include "rmlRendererProxy.h"
+#include "baseLib/event.h"
+
+#include "juce_gui_basics/juce_gui_basics.h"
+
+#include "juce_opengl/juce_opengl.h"
+
+#ifdef RMLUI_METAL_RENDERER
+#include "MetalContext.h"
+#endif
+
+namespace Rml
+{
+	class Context;
+}
+
+namespace juceRmlUi
+{
+	struct RmlInterfaces;
+	class Renderer;
+	class JuceRmlUi;
+
+	class DataProvider;
+
+	class RmlComponent final : public juce::Component, juce::OpenGLRenderer, juce::Timer, public juce::FileDragAndDropTarget, public juce::DragAndDropTarget, public juce::DragAndDropContainer
+#ifdef RMLUI_METAL_RENDERER
+		, public MetalContext::Listener
+#endif
+	{
+	public:
+		enum class Renderer : uint8_t
+		{
+			None,
+			Gl2,
+			Gl3,
+			Software,
+#ifdef RMLUI_METAL_RENDERER
+			Metal,
+#endif
+		};
+
+		enum class ScreenshotState : uint8_t
+		{
+			NoScreenshot,
+			RequestScreenshot,
+			ScreenshotReady
+		};
+
+		using ScreenshotCallback = std::function<void(const juce::Image&)>;
+
+		baseLib::Event<RmlComponent*> evPreUpdate;
+		baseLib::Event<RmlComponent*> evPostUpdate;
+		// Fired when the component loses keyboard focus, after every key RmlUi still saw as held has been released.
+		baseLib::Event<RmlComponent*> evFocusLost;
+		// Fired asynchronously, after layout, when the size of the <body> changed: in the fixed window mode when the
+		// skin gave it a different explicit size, for example by toggling a class, and getDocumentSize() already
+		// returns the new size; in the free window mode whenever the window or the zoom changed the room it has.
+		baseLib::Event<RmlComponent*> evDocumentSizeChanged;
+
+		using ContextCreatedCallback = std::function<void(RmlComponent&, Rml::Context&)>;
+		using DocumentLoadFailedCallback = std::function<void(RmlComponent&, Rml::Context&)>;
+		using DocumentCreatedCallback = std::function<void(RmlComponent&, Rml::ElementDocument*)>;
+
+		explicit RmlComponent(RmlInterfaces& _interfaces, DataProvider& _dataProvider, std::string _rootRmlFilename, float _contentScale, const ContextCreatedCallback& _contextCreatedCallback, const DocumentLoadFailedCallback& _docLoadFailedCallback, const RmlComponentConfig& _config);
+		~RmlComponent() override;
+
+		void newOpenGLContextCreated() override;
+		void renderOpenGL() override;
+		void openGLContextClosing() override;
+		void visibilityChanged() override;
+
+#ifdef RMLUI_METAL_RENDERER
+		void metalContextCreated(MetalContext& _context) override;
+		void renderMetal(MetalContext& _context) override;
+		void metalContextClosing(MetalContext& _context) override;
+#endif
+
+		void mouseDown(const juce::MouseEvent& _event) override;
+		void mouseUp(const juce::MouseEvent& _event) override;
+		void mouseMove(const juce::MouseEvent& _event) override;
+		void mouseDrag(const juce::MouseEvent& _event) override;
+		void mouseDoubleClick(const juce::MouseEvent& _event) override;
+		void mouseWheelMove(const juce::MouseEvent& _event, const juce::MouseWheelDetails& _wheel) override;
+		void mouseEnter(const juce::MouseEvent& _event) override;
+		void mouseExit(const juce::MouseEvent& _event) override;
+		bool keyPressed(const juce::KeyPress& _key) override;
+		bool keyStateChanged(bool _isKeyDown) override;
+		void modifierKeysChanged(const juce::ModifierKeys& _modifiers) override;
+		void focusLost(FocusChangeType _cause) override;
+		void focusGained(FocusChangeType _cause) override;
+
+		void parentHierarchyChanged() override;
+
+		void timerCallback() override;
+
+		RmlInterfaces& getInterfaces() const { return m_rmlInterfaces; }
+
+		void resized() override;
+		void parentSizeChanged() override;
+
+		Rml::ElementDocument* getDocument() const;
+		Rml::Context* getContext() const;
+
+		void addPostFrameCallback(std::function<void()> _callback)
+		{
+			m_postFrameCallbacks.emplace_back(std::move(_callback));
+		}
+
+		bool isInterestedInFileDrag(const juce::StringArray& _files) override;
+		void fileDragEnter(const juce::StringArray& _files, int _x, int _y) override;
+		void fileDragMove(const juce::StringArray& _files, int _x, int _y) override;
+		void fileDragExit(const juce::StringArray& _files) override;
+		void filesDropped(const juce::StringArray& _files, int _x, int _y) override;
+		bool isInterestedInDragSource(const SourceDetails& _dragSourceDetails) override;
+		void itemDragEnter(const SourceDetails& _dragSourceDetails) override;
+		void itemDragMove(const SourceDetails& _dragSourceDetails) override;
+		void itemDragExit(const SourceDetails& _dragSourceDetails) override;
+		void itemDropped(const SourceDetails& _dragSourceDetails) override;
+		bool shouldDropFilesWhenDraggedExternally(const SourceDetails& _sourceDetails, juce::StringArray& _files, bool& _canMoveFiles) override;
+		void dragOperationEnded(const SourceDetails& _sourceDetails) override;
+		void releaseLostMouseButtons(const juce::MouseEvent& _event);
+
+		// Files dropped on this component that no element in the document wanted. The component
+		// is interested in every file drag, so there is nothing above it that JUCE would ask next.
+		void setUnhandledFilesCallback(RmlDrag::UnhandledFilesCallback _callback) { m_drag.setUnhandledFilesCallback(std::move(_callback)); }
+		bool wasLastFileDropHandled() const noexcept { return m_drag.wasLastDropHandled(); }
+
+		juce::Point<int> toRmlPosition(const juce::MouseEvent& _e) const;
+		juce::Point<int> toRmlPosition(int _x, int _y) const;
+
+		float getOpenGLRenderingScale() const;
+
+		// true if the editor is actually on screen, i.e. its window exists, is visible and is not minimized
+		bool isOnScreen() const;
+
+		// The size the window has at a scale of 1: the body size in the fixed window mode, the default size from
+		// the windowWidth and windowHeight attributes of the body in the free one
+		Rml::Vector2i getDocumentSize() const { return m_documentSize; }
+
+		// <body windowMode="free">: the body follows the window instead of the window following the body, so a
+		// larger window means more room. The scale is set from outside instead of derived from the window width.
+		bool isFreeWindowMode() const { return m_freeWindowMode; }
+		void setFreeWindowScale(float _scale);
+		// Window size limits from min-width, min-height, max-width and max-height of the body, in the units of
+		// getDocumentSize(). A limit that is not given is 0 for the minimum and FLT_MAX for the maximum.
+		Rml::Vector2f getMinimumDocumentSize() const { return m_minimumDocumentSize; }
+		Rml::Vector2f getMaximumDocumentSize() const { return m_maximumDocumentSize; }
+
+		void resize(int _width, int _height);
+
+		static void requestUpdate(const Rml::Element* _elem);
+
+		static RmlComponent* fromElement(const Rml::Element* _element);
+
+		void enqueueUpdate();
+		// Call after a new renderer has been installed. Resources built from a layer snapshot
+		// cannot be carried over - replaying the snapshot on the new renderer would capture
+		// whatever layer happens to be current - so RmlUi has to build them again itself.
+		void onRendererChanged() const;
+
+		void enableDebugger(bool _enable);
+
+		bool takeScreenshot(const ScreenshotCallback& _callback);
+
+		// Produces one frame synchronously, for a component configured with offlineRendering.
+		// _target is drawn into at its own size, which has to be the component's render size, and
+		// _time is the point on the caller's clock the frame stands for. Returns false if this
+		// component cannot render offline.
+		bool renderOffline(juce::Image& _target, double _time);
+
+		bool supportsPowerOfTwo() const;
+		uint32_t getMaximumTextureSize() const;
+		uint32_t getValidTextureSize(uint32_t _size) const;
+
+		void paint(juce::Graphics& _g) override;
+
+		Component* getComponentAt(juce::Point<float> _position) override;
+		Rml::Element* getLastElementByGetComponentAt() const { return m_lastGetComponentAt.get(); }
+
+	private:
+		void update();
+		void createRmlContext(const ContextCreatedCallback& _contextCreatedCallback);
+		void destroyRmlContext();
+		void updateRmlContextDimensions();
+		bool updateDocumentSize();
+		bool updateDocumentLimits();
+		void startNextFrameTimer();
+		bool dispatchFrameEvent();
+
+		Rml::Vector2i getRenderSize() const;
+
+		int toRmlModifiers(const juce::MouseEvent& _event);
+		int toRmlModifiers(const juce::KeyPress& _event);
+		int toRmlModifiers(const juce::ModifierKeys& _mods);
+
+		RmlInterfaces& m_rmlInterfaces;
+		Rml::CoreInstance& m_coreInstance;
+		DataProvider& m_dataProvider;
+		const std::string m_rootRmlFilename;
+
+		std::unique_ptr<juce::OpenGLContext> m_openGLContext;
+
+#ifdef RMLUI_METAL_RENDERER
+		std::unique_ptr<MetalContext> m_metalContext;
+#endif
+
+		std::unique_ptr<Rml::RenderInterface> m_renderInterface;
+		Renderer m_renderType = Renderer::None;
+		std::unique_ptr<RendererProxy> m_renderProxy;
+
+		Rml::Context* m_rmlContext = nullptr;
+		Rml::ElementDocument* m_document = nullptr;
+
+		std::vector<juce::KeyPress> m_pressedKeys;
+		float m_contentScale = 1.0f;
+		float m_currentRenderScale = 0.0f;
+		// Device pixels per logical pixel for the software renderer. OpenGL and
+		// Metal report this themselves; the software path has to be told, and
+		// the component transform chain does not carry it - see paint().
+		std::atomic<float> m_softwareRenderScale{1.0f};
+
+		std::mutex m_timerMutex;
+		std::mutex m_contextRenderMutex;
+
+		std::vector<std::function<void()>> m_postFrameCallbacks;
+		std::vector<std::function<void()>> m_tempPostFrameCallbacks;
+
+		DocumentCreatedCallback m_onDocumentCreated;
+
+		RmlDrag m_drag;
+
+		// The buttons the context was told are down, a bit per Rml mouse button. A release can get lost on the way
+		// (a host that activates its window during the click, a drag session of the system), see releaseLostMouseButtons
+		uint32_t m_pressedMouseButtons = 0;
+		// The press that closed a list of another window, which goes no further, see mouseDown()
+		bool m_pressSwallowed = false;
+		juce::ModifierKeys m_currentModifierKeys;
+
+		bool m_updating = true;
+
+		Rml::Vector2i m_documentSize{0,0};
+		// The body size in dp and the dp ratio m_documentSize was measured at, to tell a size the skin changed
+		// from one that only follows the current scale
+		Rml::Vector2f m_documentSizeDp{0,0};
+		float m_documentDpRatio = 1.0f;
+
+		bool m_freeWindowMode = false;
+		float m_freeWindowScale = 1.0f;
+		Rml::Vector2f m_minimumDocumentSize{0, 0};
+		Rml::Vector2f m_maximumDocumentSize{FLT_MAX, FLT_MAX};
+
+		JUCE_DECLARE_NON_COPYABLE(RmlComponent)
+		JUCE_DECLARE_NON_MOVEABLE(RmlComponent)
+
+		double m_time = 0;
+		double m_lastFrameEventTime = 0;
+		float m_fps = 0;
+		float m_targetFPS = 0;
+
+		uint32_t m_pendingUpdates = 0;
+		std::atomic<bool> m_renderDone;
+		double m_nextFrameTime;
+
+		bool m_debuggerActive = false;
+
+		uint32_t m_openGLversion = 0;
+		uint32_t m_lastOpenGLversion = 0;
+
+		juce::Image m_screenshot;
+		ScreenshotState m_screenshotState = ScreenshotState::NoScreenshot;
+		ScreenshotCallback m_screenshotCallback;
+
+		RmlComponentConfig m_config;
+
+		Rml::ObserverPtr<Rml::Element> m_lastGetComponentAt;
+	};
+}

@@ -1,0 +1,200 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/temp/cmake_${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
+      "hidden": true
+    },
+    {
+      "name": "default",
+      "inherits": "base"
+    },
+    {
+      "name": "windows-x64",
+      "inherits": "default",
+      "displayName": "Windows default x64 configuration",
+      "architecture": "x64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-arm64",
+      "inherits": "windows-x64",
+      "displayName": "Windows default ARM64 configuration",
+      "architecture": "ARM64"
+    },
+    {
+      "name": "macos",
+      "generator": "Xcode",
+      "inherits": "default",
+      "displayName": "MacOS default configuration",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "zynthian",
+      "inherits": "default",
+      "displayName": "Build specifically for the Zynthian platform",
+      "generator": "Ninja",
+      "installDir": "/usr/local",
+      "cacheVariables": {
+        "gearmulator_BUILD_JUCEPLUGIN": "ON",
+        "gearmulator_BUILD_FX_PLUGIN": "OFF",
+
+        "CMAKE_CXX_FLAGS": "-march=armv8.2-a -DZYNTHIAN",
+        "CMAKE_C_FLAGS": "-march=armv8.2-a -DZYNTHIAN",
+
+        "gearmulator_BUILD_JUCEPLUGIN_CLAP": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_VST2": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_VST3": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_AU": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_LV2": "ON",
+
+        "gearmulator_SYNTH_NODALRED2X": "OFF",
+        "gearmulator_SYNTH_OSIRUS": "ON",
+        "gearmulator_SYNTH_OSTIRUS": "ON",
+        "gearmulator_SYNTH_VAVRA": "ON",
+        "gearmulator_SYNTH_XENIA": "ON"
+      }
+    },
+    {
+      "name": "github-base",
+      "displayName": "Executed by github actions",
+      "binaryDir": "${sourceDir}/build",
+      "installDir": "${sourceDir}/install",
+      "cacheVariables": {
+        "gearmulator_BUILD_JUCEPLUGIN": "ON",
+        "gearmulator_BUILD_FX_PLUGIN": "ON",
+
+        "gearmulator_BUILD_JUCEPLUGIN_CLAP": "ON",
+        "gearmulator_BUILD_JUCEPLUGIN_VST2": "ON",
+        "gearmulator_BUILD_JUCEPLUGIN_VST3": "ON",
+        "gearmulator_BUILD_JUCEPLUGIN_AU": "ON",
+        "gearmulator_BUILD_JUCEPLUGIN_LV2": "ON",
+
+        "gearmulator_SYNTH_NODALRED2X": "OFF",
+        "gearmulator_SYNTH_OSIRUS": "ON",
+        "gearmulator_SYNTH_OSTIRUS": "ON",
+        "gearmulator_SYNTH_VAVRA": "ON",
+        "gearmulator_SYNTH_XENIA": "ON"
+      }
+    },
+	{
+      "name": "android",
+      "inherits": "default",
+      "displayName": "Android ARM64",
+      "generator": "Unix Makefiles",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{ANDROID_NDK_ROOT}/build/cmake/android.toolchain.cmake",
+        "ANDROID_ABI": "arm64-v8a",
+        "ANDROID_PLATFORM": "android-21",
+
+        "gearmulator_BUILD_JUCEPLUGIN": "ON",
+        "gearmulator_BUILD_FX_PLUGIN": "OFF",
+
+        "gearmulator_BUILD_JUCEPLUGIN_Standalone": "ON",
+        "gearmulator_BUILD_JUCEPLUGIN_CLAP": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_VST2": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_VST3": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_AU": "OFF",
+        "gearmulator_BUILD_JUCEPLUGIN_LV2": "OFF"
+      }
+    },
+    {
+      "name": "github-Windows",
+      "inherits": "github-base",
+      "architecture": "x64",
+	  "generator": ""
+    },
+    {
+      "name": "github-macOS",
+      "inherits": "github-base",
+	  "generator": "Xcode"
+    },
+    {
+      "name": "github-Linux",
+      "inherits": "github-base",
+	  "generator": ""
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-x64",
+      "inherits": "default",
+      "configurePreset": "windows-x64"
+    },
+    {
+      "name": "macos",
+      "inherits": "default",
+      "configurePreset": "macos"
+    },
+    {
+      "name": "zynthian",
+      "inherits": "default",
+      "configurePreset": "zynthian"
+    },
+    {
+      "name": "android",
+      "inherits": "default",
+      "configurePreset": "android"
+    },
+    {
+      "name": "github-Windows",
+      "inherits": "default",
+      "configurePreset": "github-Windows"
+    },
+    {
+      "name": "github-macOS",
+      "inherits": "default",
+      "configurePreset": "github-macOS"
+    },
+    {
+      "name": "github-Linux",
+      "inherits": "default",
+      "configurePreset": "github-Linux"
+    }
+  ],
+  "packagePresets":
+  [
+    {
+      "name": "github-Windows",
+      "configurePreset": "github-Windows",
+      "generators":
+	  [
+        "ZIP"
+      ]
+    },
+    {
+      "name": "github-macOS",
+      "configurePreset": "github-macOS",
+      "generators":
+	  [
+        "ZIP"
+      ]
+    },
+    {
+      "name": "github-Linux",
+      "configurePreset": "github-Linux",
+      "generators":
+	  [
+        "ZIP",
+        "DEB",
+        "RPM"
+      ]
+    }
+  ]
+}

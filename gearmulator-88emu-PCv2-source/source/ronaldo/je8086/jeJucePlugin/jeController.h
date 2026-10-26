@@ -1,0 +1,93 @@
+#pragma once
+
+#include <mutex>
+
+#include "jeLcd.h"
+#include "jeTypes.h"
+#include "jeLib/jemiditypes.h"
+#include "jeLib/state.h"
+
+#include "jucePluginLib/controller.h"
+#include "jucePluginLib/patchdb/patch.h"
+
+namespace jeLib
+{
+	class Rom;
+}
+
+namespace jeJucePlugin
+{
+	class AudioPluginAudioProcessor;
+
+	class Controller : public pluginLib::Controller
+	{
+	public:
+		baseLib::Event<PatchType, std::string> evPatchNameChanged;
+
+		Controller(AudioPluginAudioProcessor&);
+		~Controller() override;
+
+		void onStateLoaded() override;
+
+		uint8_t getPartCount() const override
+		{
+			return 2;
+		}
+
+		// the performance write button is part 2
+		bool isPartEnabled(const uint8_t _part) const override
+		{
+			return _part <= static_cast<uint8_t>(JePart::Performance);
+		}
+
+		void sendParameterChange(const pluginLib::Parameter& _parameter, pluginLib::ParamValue _value, pluginLib::Parameter::Origin _origin) override;
+		void sendParameterChange(jeLib::SystemParameter _parameter, int _value) const;
+		bool parseSysexMessage(const pluginLib::SysEx&, synthLib::MidiEventSource) override;
+
+		std::vector<uint8_t> getPartsForMidiChannel(uint8_t _channel) override;
+
+		bool sendSingle(const pluginLib::SysEx& _sysex, uint32_t _part) const;
+
+		// The messages that load patch or performance _sysex into the temporary performance, a patch into its upper
+		// (part 0) or lower layer. Safe to call from any thread
+		bool createSingleMessages(synthLib::SysexBufferList& _result, const pluginLib::SysEx& _sysex, uint32_t _part) const;
+
+		void sendTempPerformanceRequest() const;
+		void sendPerformanceRequest(jeLib::AddressArea _area, jeLib::UserPerformanceArea _performance) const;
+		void sendSystemRequest() const;
+
+		bool isUpperSelected() const;
+		bool isLowerSelected() const;
+		bool isBothSelected() const;
+
+		bool requestPatchForPart(synthLib::SysexBuffer& _data, uint32_t _part, uint64_t _userData) const;
+
+		const std::string& getPatchName(PatchType _type) const { return m_patchNames[static_cast<size_t>(_type)]; }
+
+		bool changePatchName(PatchType _type, const std::string& _newName) const;
+
+		using pluginLib::Controller::findSynthParam;
+
+		void sendButton(uint32_t _button, bool _pressed) const;
+
+	private:
+		void parsePerformanceCommon(const pluginLib::SysEx& _sysex);
+		void parsePatch(const pluginLib::SysEx& _sysex, uint8_t _part);
+		// one byte per parameter, the byte's address is the parameter index
+		void parseParameters(const pluginLib::SysEx& _sysex, uint8_t _part, uint8_t _page) const;
+		void parseSystemParameters(const pluginLib::SysEx& _sysex) const;
+
+		void setPatchName(PatchType _type, const std::string& _name);
+
+		void receiveState(const synthLib::SysexBuffer& _sysex);
+
+		// sendParameterChange writes the mirror on whatever thread the host automates from, the
+		// device's replies and the patch manager use it on the message thread
+		mutable std::mutex m_stateMutex;
+		jeLib::State m_state;
+
+		std::array<std::string, static_cast<size_t>(PatchType::Count)> m_patchNames;
+
+		baseLib::EventListener<uint8_t, uint8_t, int32_t> m_onParamChanged;
+	};
+}

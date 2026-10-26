@@ -1,0 +1,68 @@
+#pragma once
+
+#include <array>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "jeTypes.h"
+
+#include "baseLib/event.h"
+
+#include "jucePluginLib/parameterlistener.h"
+
+namespace Rml
+{
+	class Element;
+	class Event;
+}
+
+namespace pluginLib
+{
+	class Parameter;
+}
+
+namespace jucePluginEditorLib
+{
+	class PartButton;
+}
+
+namespace juceRmlUi
+{
+	class ElemButton;
+}
+
+namespace jeJucePlugin
+{
+	class Editor;
+
+	class PartSelect
+	{
+	public:
+		explicit PartSelect(Editor& _editor);
+
+		PartSelect(const PartSelect&) = delete;
+		PartSelect& operator=(const PartSelect&) = delete;
+		PartSelect(PartSelect&&) = delete;
+		PartSelect& operator=(PartSelect&&) = delete;
+
+		~PartSelect();
+
+	private:
+		void onPartSelectChanged() const;
+		void updateButtonStates() const;
+		void onClick(Rml::Event& _event, size_t _part) const;
+
+		void onPatchNameChanged(PatchType _patch, const std::string& _name) const;
+
+		Editor& m_editor;
+
+		std::array<std::vector<juceRmlUi::ElemButton*>, 2> m_patchButtons;
+		std::array<std::vector<Rml::Element*>, 2> m_patchNames;
+		std::array<std::vector<std::unique_ptr<jucePluginEditorLib::PartButton>>, 2> m_partButtons;
+
+		pluginLib::Parameter* m_paramPanelSelect = nullptr;
+		pluginLib::ParameterListener m_partSelectListener;
+		baseLib::EventListener<PatchType, std::string> m_onPatchNameChanged;
+	};
+}

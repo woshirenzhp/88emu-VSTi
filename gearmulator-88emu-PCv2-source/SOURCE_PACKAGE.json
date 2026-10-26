@@ -1,0 +1,25 @@
+{
+  "project": "Gearmulator 2.2.28 / 88emuPlayer four-port VST3 PCv2",
+  "included_roots": [
+    "source",
+    "scripts",
+    "doc",
+    "deploy",
+    "installer",
+    ".github",
+    "vsthost-main"
+  ],
+  "files": 18577,
+  "uncompressed_source_bytes": 531903782,
+  "scope": "Current workspace source snapshot with available dependency source; no Git history.",
+  "excluded": [
+    "bin, dist, temp, logs, sc_backup, vsthostx86",
+    "personal MIDI files and firmware ROMs",
+    "Git internals and developer caches",
+    "compiled executables/libraries, symbols and runtime logs",
+    "proprietary SDKs and portmidi_cdt.zip legacy binary archive"
+  ],
+  "license": "Main project GPL v3; dependency and legacy host license notices retained.",
+  "build": "See README.md and scripts/build_88vst3.ps1",
+  "verification": "SOURCE_MANIFEST.json lists byte counts and SHA-256 for every source file. Manifest and package metadata themselves are not recursive manifest entries."
+}

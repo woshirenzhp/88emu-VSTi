@@ -1,0 +1,65 @@
+#pragma once
+
+#include "jucePluginEditorLib/pluginEditor.h"
+
+#include "jucePluginLib/patchdb/patch.h"
+
+#include "baseLib/event.h"
+
+namespace jucePluginEditorLib
+{
+	class FirmwareSelector;
+	class FrontPanel;
+	class Processor;
+}
+
+namespace jeJucePlugin
+{
+	class AudioPluginAudioProcessor;
+	class JePartButton;
+	class JeAssign;
+	class PartSelect;
+	class JeLcd;
+	class Controller;
+
+	class Editor final : public jucePluginEditorLib::Editor
+	{
+	public:
+		Editor(jucePluginEditorLib::Processor& _processor, const jucePluginEditorLib::Skin& _skin);
+		~Editor() override;
+
+		Editor(Editor&&) = delete;
+		Editor(const Editor&) = delete;
+		Editor& operator = (Editor&&) = delete;
+		Editor& operator = (const Editor&) = delete;
+
+		void create() override;
+
+		void initPluginDataModel(jucePluginEditorLib::PluginDataModel& _model) override;
+
+
+		Controller& getJeController() const { return m_controller; }
+		AudioPluginAudioProcessor& getJeProcessor() const;
+		const JeLcd* getLcd() const { return m_lcd.get(); }
+		void onFocusedParameterChanged(const std::string& _name, const std::string& _value) override;
+
+	private:
+		void onBtWrite(Rml::Event& _event) const;
+		bool createWritePatchesMenu(juceRmlUi::Menu& _menu) const;
+		void onFirmwareChanged();
+
+		Controller& m_controller;
+
+		std::unique_ptr<jucePluginEditorLib::FirmwareSelector> m_firmwareSelector;
+		baseLib::EventListener<uint32_t> m_onFirmwareChanged;
+
+		std::array<std::string, 4> m_activePatchNames;
+
+		std::unique_ptr<JeLcd> m_lcd;
+		std::unique_ptr<jucePluginEditorLib::FrontPanel> m_frontPanel;
+		std::unique_ptr<PartSelect> m_partSelect;
+		std::unique_ptr<JeAssign> m_assign;
+
+		std::vector<std::unique_ptr<JePartButton>> m_writeButtons;
+	};
+}
